@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sardinha Financeira - Simulador de Mercado</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Importação da fonte Jersey 10 - Estética de arcade desportivo */
+        @import url('https://fonts.googleapis.com/css2?family=Jersey+10&display=swap');
+
+        :root {
+            --bg-color: #f7f7f7;
+            --primary-color: #535353;
+            --accent-color: #757575;
+            --overlay-bg: rgba(247, 247, 247, 0.95);
+            --retro-font: 'Jersey 10', serif;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: var(--retro-font);
+            touch-action: manipulation;
+            user-select: none;
+            color: var(--primary-color);
+            line-height: 1.1;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; 
+            background-color: var(--bg-color);
+        }
+
+        /* Camada do Jogo: O Peixe aparece acima do menu inicial, mas abaixo do Game Over */
+        canvas {
+            display: block;
+            max-width: 100%;
+            max-height: 100%;
+            z-index: 110; 
+            position: absolute;
+            top: 120px; 
+            pointer-events: none; 
+        }
+
+        /* Estrutura de Camadas de Interface */
+        .ui-layer {
+            position: absolute;
+            top: 60px; 
+            left: 0;
+            width: 100%;
+            height: 600px; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+            text-align: center;
+        }
+
+        #start-screen { z-index: 105; }
+        #game-over-screen { z-index: 140; }
+        #leaderboard-screen { z-index: 150; }
+        #new-record-overlay { z-index: 160; }
+
+        /* Barra de pontos superior */
+        .stats-bar {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            max-width: 700px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 40px;
+            pointer-events: none;
+            z-index: 50; 
+            background: rgba(247, 247, 247, 0.8);
+            backdrop-blur: 4px;
+            border-radius: 12px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 120px;
+        }
+
+        .stat-label {
+            font-size: 16px;
+            font-weight: 400;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            opacity: 0.7;
+            margin-bottom: 2px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* AJUSTADO: Logo da AUVP diminuído para 35px de altura */
+        .stats-logo {
+            height: 35px;
+            width: auto;
+            opacity: 0.8;
+        }
+
+        .btn {
+            background: transparent;
+            border: 3px solid var(--primary-color);
+            padding: 10px 24px;
+            color: var(--primary-color);
+            cursor: pointer;
+            pointer-events: auto; 
+            font-size: 24px;
+            font-family: var(--retro-font);
+            transition: all 0.1s;
+            text-transform: uppercase;
+            box-shadow: 4px 4px 0px var(--primary-color);
+            margin-bottom: 8px;
+        }
+
+        .btn:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0px var(--primary-color);
+        }
+
+        .btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0px 0px 0px var(--primary-color);
+        }
+
+        .hidden { display: none !important; }
+
+        .overlay-card {
+            padding: 15px 40px; 
+            border: 4px solid var(--primary-color);
+            background: var(--overlay-bg);
+            box-shadow: 12px 12px 0px var(--primary-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 90%;
+            position: relative;
+            pointer-events: auto; 
+        }
+
+        .menu-fish-spacer {
+            height: 180px;
+            width: 100%;
+        }
+
+        .leaderboard-list {
+            width: 100%;
+            margin: 15px 0;
+            font-size: 22px;
+        }
+
+        .leaderboard-item {
+            display: grid;
+            grid-template-columns: 40px 1fr 80px;
+            gap: 10px;
+            padding: 4px 0;
+            border-bottom: 2px solid #ddd;
+            text-align: left;
+        }
+
+        /* Aba Lateral de Ranking Independente */
+        #persistent-leaderboard {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 240px;
+            background: var(--overlay-bg);
+            border: 3px solid var(--primary-color);
+            padding: 15px;
+            box-shadow: 8px 8px 0px var(--primary-color);
+            z-index: 120; 
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        input {
+            background: #fff;
+            border: 3px solid var(--primary-color);
+            padding: 16px 20px; 
+            color: var(--primary-color);
+            font-family: var(--retro-font);
+            font-size: 28px;
+            line-height: 1.2;
+            text-transform: uppercase;
+            width: 100%;
+            max-width: 320px;
+            text-align: center;
+            pointer-events: auto;
+            margin-bottom: 15px;
+            outline: none;
+            box-sizing: border-box;
+            border-radius: 0;
+            display: block;
+        }
+
+        input::placeholder {
+            font-size: 22px;
+            opacity: 0.4;
+            text-align: center;
+        }
+
+        #game-hint {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            text-align: center;
+            font-size: 24px;
+            z-index: 90;
+            color: var(--primary-color);
+            pointer-events: none;
+            animation: pulse-soft 1.5s infinite ease-in-out;
+            letter-spacing: 1px;
+            opacity: 0.8;
+        }
+
+        #game-over-record-banner {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 5px 15px;
+            font-size: 18px;
+            margin-bottom: 15px;
+            transform: rotate(-2deg);
+        }
+
+        .performance-stat {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 0.4; transform: translateY(0); }
+            50% { opacity: 1; transform: translateY(-5px); }
+        }
+
+        .animate-pulse-custom {
+            animation: pulse 0.8s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- Barra de Estatísticas com o Olho da AUVP centralizado -->
+    <div class="stats-bar" id="ingame-stats">
+        <div class="stat-item">
+            <span class="stat-label">MELHOR MARCA</span>
+            <span id="hi-score-val" class="stat-value">00000</span>
+        </div>
+        
+        <img src="https://auvp.pro/wp-content/uploads/2026/02/AUVP-INVEST-VERTICAL-P-FUNDO-ESCURO_3.png" 
+             alt="Logo AUVP" 
+             class="stats-logo"
+             onerror="this.style.display='none'">
+
+        <div class="stat-item">
+            <span class="stat-label">COTAS $</span>
+            <span id="score-val" class="stat-value">00000</span>
+        </div>
+    </div>
+
+    <div id="game-hint" class="hidden">TOQUE, CLIQUE OU ESPAÇO PARA SUBIR</div>
+
+    <!-- Aba Lateral de Ranking Independente -->
+    <div id="persistent-leaderboard">
+        <span class="text-sm uppercase opacity-70 border-b border-gray-400 block mb-2">Top Investidores</span>
+        <div id="home-leaderboard-list" class="leaderboard-list !my-0 text-lg">
+            <!-- Populado via JS -->
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Tela Inicial -->
+    <div id="start-screen" class="ui-layer">
+        <div class="overlay-card w-96">
+            <h1 class="text-5xl mb-2 leading-none uppercase">Sardinha<br>Financeira</h1>
+            <p class="text-xl uppercase opacity-60 mb-4">Por AUVP</p>
+            
+            <div class="menu-fish-spacer"></div>
+            
+            <div class="flex flex-col gap-4 w-full">
+                <button class="btn" id="start-btn">Comprar Ativos</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ranking Detalhado (Modal) -->
+    <div id="leaderboard-screen" class="ui-layer hidden">
+        <div class="overlay-card w-96">
+            <h2 class="text-3xl font-bold mb-6">RANKING LOCAL</h2>
+            <div id="leaderboard-content" class="leaderboard-list">
+            </div>
+            <button class="btn w-full" id="close-leaderboard-btn">Voltar</button>
+        </div>
+    </div>
+
+    <!-- Tela de Game Over -->
+    <div id="game-over-screen" class="ui-layer hidden">
+        <div class="overlay-card w-96">
+            <div id="game-over-record-banner" class="hidden animate-pulse-custom uppercase">Novo Recorde!</div>
+            
+            <h2 id="death-title" class="text-3xl mb-2 leading-tight uppercase">Liquidação</h2>
+            <p id="death-subtitle" class="text-base uppercase mb-6 opacity-60">Obrigado pela Liquidez!</p>
+            
+            <div class="w-full flex flex-col items-center mb-6">
+                <label class="stat-label block mb-2">Nome do Investidor:</label>
+                <input type="text" id="investor-name" maxlength="12" placeholder="DIGITE SEU NOME...">
+            </div>
+
+            <div class="w-full border-y-2 border-gray-300 py-4 mb-6 text-left">
+                <div class="performance-stat">
+                    <span>PATRIMÔNIO:</span>
+                    <span id="final-coins" class="font-bold">0</span>
+                </div>
+                <div class="performance-stat text-base opacity-80">
+                    <span>POSIÇÃO RANKING:</span>
+                    <span id="current-rank-val" class="font-bold">--</span>
+                </div>
+                <div class="performance-stat text-base opacity-80">
+                    <span>VS. MÉDIA:</span>
+                    <span id="average-diff-val" class="font-bold">--</span>
+                </div>
+            </div>
+            
+            <button class="btn w-full" id="restart-btn">Salvar e Reiniciar</button>
+            <button class="btn w-full !text-base" id="over-leaderboard-btn">Ver Histórico</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /**
+     * SISTEMA DE ÁUDIO SINTETIZADO
+     */
+    let audioCtx;
+    
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+    
+    function playSound(freq, type, duration, vol = 0.1, slide = 0) {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        if (slide !== 0) {
+            osc.frequency.exponentialRampToValueAtTime(freq + slide, audioCtx.currentTime + duration);
+        }
+        
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
+    const sfx = {
+        jump: () => {
+            const baseFreq = 160 + Math.random() * 60;
+            playSound(baseFreq, 'sine', 0.15, 0.15, 150);
+        },
+        coin: () => {
+            const baseFreq = 600 + Math.random() * 200;
+            playSound(baseFreq, 'sine', 0.1, 0.1);
+            setTimeout(() => playSound(baseFreq * 1.5, 'sine', 0.2, 0.1), 50);
+        },
+        crash: () => playSound(100, 'sawtooth', 0.4, 0.2, -80),
+        record: () => {
+            [440, 554, 659, 880].forEach((f, i) => {
+                setTimeout(() => playSound(f, 'square', 0.3, 0.05), i * 100);
+            });
+        }
+    };
+
+    /**
+     * LÓGICA DO JOGO
+     */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score-val');
+    const hiScoreEl = document.getElementById('hi-score-val');
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const leaderboardScreen = document.getElementById('leaderboard-screen');
+    const persistentBoard = document.getElementById('persistent-leaderboard');
+    const nameInput = document.getElementById('investor-name');
+    const hintEl = document.getElementById('game-hint');
+    const recordBanner = document.getElementById('game-over-record-banner');
+
+    const COLORS = {
+        bg: '#f7f7f7',
+        main: '#535353',
+        accent: '#757575',
+        light: '#d3d3d3',
+        bubble: 'rgba(83, 83, 83, 0.12)',
+        seaweed: 'rgba(83, 83, 83, 0.18)'
+    };
+
+    const GAME_WIDTH = 700; 
+    const GAME_HEIGHT = 600;
+    const GROUND_Y = GAME_HEIGHT - 80;
+    const GRAVITY = 0.28;
+    const JUMP = -5.6;
+    
+    const BASE_SPEED = 4.2;
+    const MAX_SPEED = 8.5;
+    const SPEED_INCREMENT = 0.08; 
+    const BASE_PIPE_SPAWN_INTERVAL = 1300;
+    
+    const RIM_HEIGHT = 24;
+    const PIPE_GAP = 165;
+
+    const BAD_PRACTICES = [
+        ["DAY", "TRADE"], ["DICAS DE", "GRUPO"], "ALAVANCAGEM", ["FALTA DE", "RESERVA"],
+        ["SEM", "DIVERSIFICAR"], "FOMO", ["GIRO DE", "CARTEIRA"], ["PÂNICO NA", "QUEDA"],
+        ["TAXAS", "ALTAS"], ["PROMESSA", "IRREAL"], ["CURTO", "PRAZO"], ["SEGUIR A", "BOIADA"]
+    ];
+
+    const ACID_TITLES = ["LIQUIDAÇÃO FORÇADA", "MARGEM ESGOTADA", "PATRIMÔNIO DERRETIDO", "BULL TRAP!", "VOCÊ VIROU PATÊ", "STOPADO PELO MERCADO"];
+    const ACID_SUBTITLES = ["Obrigado pela liquidez!", "O mercado te engoliu.", "Volte para a poupança.", "A Faria Lima agradece.", "Sardinha frita no jantar.", "Mais sorte no cassino."];
+    
+    let gameState = 'START';
+    let coinsSession = 0;
+    let highscoreCotas = parseInt(localStorage.getItem('flappyHighscoreCotas')) || 0;
+    let currentInvestorName = localStorage.getItem('lastInvestorName') || "";
+    let leaderboard = JSON.parse(localStorage.getItem('flappyLeaderboard')) || [];
+    let lastPipeTime = 0;
+    let groundOffset = 0;
+    let practiceDeck = [];
+    let currentSpeed = BASE_SPEED; 
+
+    const fish = {
+        x: GAME_WIDTH / 2,
+        y: 270, 
+        targetX: 120,
+        velocity: 0,
+        rotation: 0,
+        alive: true
+    };
+
+    let pipes = [], coins = [], particles = [], environmentBubbles = [], seaweed = [], seabedDeco = [];
+
+    function initEnvironment() {
+        environmentBubbles = []; seaweed = []; seabedDeco = [];
+        for(let i=0; i<20; i++) environmentBubbles.push({ 
+            x: Math.random() * GAME_WIDTH, 
+            y: Math.random() * GAME_HEIGHT, 
+            size: Math.random() * 4 + 2, 
+            s: Math.random() * 0.4 + 0.1 
+        });
+        for(let i=0; i<12; i++) seaweed.push({ 
+            x: Math.random() * GAME_WIDTH, 
+            segments: Math.floor(Math.random() * 5 + 3), 
+            w: 8, 
+            offset: Math.random() * Math.PI * 2 
+        });
+        for(let i=0; i<8; i++) seabedDeco.push({
+            x: Math.random() * GAME_WIDTH,
+            w: Math.random() * 30 + 10,
+            h: Math.random() * 20 + 5
+        });
+    }
+
+    function getNextPractice() {
+        if (practiceDeck.length === 0) {
+            practiceDeck = [...BAD_PRACTICES];
+            for (let i = practiceDeck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [practiceDeck[i], practiceDeck[j]] = [practiceDeck[j], practiceDeck[i]];
+            }
+        }
+        return practiceDeck.pop();
+    }
+
+    function saveScore() {
+        const name = nameInput.value.trim().toUpperCase() || "ANÔNIMO";
+        localStorage.setItem('lastInvestorName', name);
+        if (coinsSession > 0) {
+            leaderboard.push({ name: name, score: coinsSession, date: new Date().toLocaleDateString() });
+            leaderboard.sort((a, b) => b.score - a.score);
+            leaderboard = leaderboard.slice(0, 5); 
+            localStorage.setItem('flappyLeaderboard', JSON.stringify(leaderboard));
+            updateLeaderboardUI();
+        }
+    }
+
+    function calculatePerformanceMetrics() {
+        const allScores = leaderboard.map(l => l.score);
+        const avg = allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
+        
+        let diffText = "MÉDIA: 0%";
+        let perc = 0;
+
+        if (avg > 0) {
+            perc = ((coinsSession - avg) / avg) * 100;
+            const sign = perc >= 0 ? "+" : "";
+            diffText = `${sign}${perc.toFixed(0)}% VS. MÉDIA`;
+        } else if (coinsSession > 0) {
+            perc = 100;
+            diffText = "+100% VS. MÉDIA";
+        }
+        
+        const tempBoard = [...leaderboard, { score: coinsSession }].sort((a, b) => b.score - a.score);
+        const rank = tempBoard.findIndex(l => l.score === coinsSession) + 1;
+        
+        document.getElementById('current-rank-val').innerText = `${rank}º LUGAR`;
+        document.getElementById('average-diff-val').innerText = diffText;
+        
+        if (perc >= 0) document.getElementById('average-diff-val').style.color = "#2e7d32";
+        else document.getElementById('average-diff-val').style.color = "#c62828";
+    }
+
+    function updateLeaderboardUI() {
+        const containers = [
+            document.getElementById('leaderboard-content'),
+            document.getElementById('home-leaderboard-list')
+        ];
+        containers.forEach(container => {
+            if (!container) return;
+            container.innerHTML = '';
+            if (leaderboard.length === 0) {
+                container.innerHTML = '<p class="opacity-50 text-xl py-2 uppercase">Sem dados.</p>';
+                return;
+            }
+            const limit = container.id === 'home-leaderboard-list' ? 3 : 5;
+            leaderboard.slice(0, limit).forEach((entry, i) => {
+                const item = document.createElement('div');
+                item.className = 'leaderboard-item';
+                item.innerHTML = `
+                    <span class="opacity-50">#${i+1}</span> 
+                    <span class="truncate">${entry.name}</span> 
+                    <span class="text-right font-bold">${entry.score.toString().padStart(5, '0')}</span>
+                `;
+                container.appendChild(item);
+            });
+        });
+    }
+
+    function drawFish(ctx, x, y, rotation) {
+        if (!fish.alive) return;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(rotation);
+        ctx.fillStyle = COLORS.main;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 22, 11, 0, 0, Math.PI * 2);
+        ctx.fill();
+        const swing = Math.sin(Date.now() * 0.02) * 8;
+        ctx.beginPath();
+        ctx.moveTo(-18, 0);
+        ctx.lineTo(-30, -10 + swing/2);
+        ctx.lineTo(-30, 10 + swing/2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = COLORS.bg;
+        ctx.beginPath();
+        ctx.arc(12, -2, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    function spawnInteractionBubbles(x, y, count = 3) {
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: x + 15,
+                y: y - 2,
+                vx: (Math.random() - 0.2) * 2.5,
+                vy: -Math.random() * 3 - 2,
+                life: 1,
+                size: Math.random() * 4 + 2,
+                type: 'bubble'
+            });
+        }
+    }
+
+    function drawMinimalCoin(ctx, x, y, anim, floatY) {
+        ctx.save(); ctx.translate(x, y + floatY); ctx.scale(Math.cos(anim), 1);
+        ctx.fillStyle = COLORS.main;
+        ctx.beginPath();
+        ctx.arc(0, 0, 16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = COLORS.bg;
+        ctx.font = '22px "Jersey 10"'; 
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; 
+        ctx.fillText('$', 0, 1.5); 
+        ctx.restore();
+    }
+
+    function spawnPipe() {
+        const gap = PIPE_GAP;
+        const minH = 30;
+        const maxH = GROUND_Y - gap - minH;
+        const topH = Math.random() * (maxH - minH) + minH;
+        const bottomY = topH + gap;
+        const bottomH = GROUND_Y - bottomY;
+        let labelTop = null, labelBottom = null;
+        const fits = (p, space) => {
+            ctx.font = '28px "Jersey 10"'; 
+            const lines = Array.isArray(p) ? p : [p];
+            let maxW = 0;
+            lines.forEach(l => maxW = Math.max(maxW, ctx.measureText(l).width + 20));
+            return maxW < (space - 10);
+        };
+        for(let i=0; i<3; i++) { let p = getNextPractice(); if (fits(p, topH - RIM_HEIGHT)) { labelTop = p; break; } else { practiceDeck.unshift(p); } }
+        for(let i=0; i<3; i++) { let p = getNextPractice(); if (fits(p, bottomH - RIM_HEIGHT)) { labelBottom = p; break; } else { practiceDeck.unshift(p); } }
+        pipes.push({ x: GAME_WIDTH, top: topH, bottom: bottomY, passed: false, labelTop, labelBottom });
+        coins.push({ x: GAME_WIDTH + 45, y: topH + gap / 2, anim: Math.random() * Math.PI, floatOffset: Math.random() * Math.PI * 2 });
+    }
+
+    function update() {
+        environmentBubbles.forEach(b => { b.y -= b.s; if (b.y < -20) b.y = GAME_HEIGHT + 20; });
+        seaweed.forEach(s => {
+            const currentMoveSpeed = currentSpeed * 0.1;
+            s.x -= currentMoveSpeed;
+            if (s.x + 50 < 0) s.x = GAME_WIDTH + 50;
+        });
+        seabedDeco.forEach(d => {
+            const currentMoveSpeed = currentSpeed * 0.1;
+            d.x -= currentMoveSpeed;
+            if (d.x + 50 < 0) d.x = GAME_WIDTH + 50;
+        });
+
+        if (gameState === 'START') {
+            currentSpeed = BASE_SPEED;
+            groundOffset = (groundOffset + currentSpeed) % 40;
+            fish.x = GAME_WIDTH / 2;
+            fish.y = 270 + Math.sin(Date.now() * 0.003) * 10;
+            fish.rotation = 0; 
+            return;
+        }
+
+        if (gameState === 'PLAYING') {
+            currentSpeed = Math.min(MAX_SPEED, BASE_SPEED + (coinsSession * SPEED_INCREMENT));
+            if (fish.x > fish.targetX) fish.x -= (fish.x - fish.targetX) * 0.08;
+            fish.velocity += GRAVITY; fish.y += fish.velocity;
+            fish.rotation = Math.min(Math.PI/8, Math.max(-Math.PI/8, fish.velocity * 0.06));
+            if (fish.y > GROUND_Y - 10) { sfx.crash(); triggerDisintegration(fish.x, GROUND_Y); endGame(); }
+            if (fish.y < 0) fish.y = 0;
+            groundOffset = (groundOffset + currentSpeed) % 40;
+            const dynamicInterval = (BASE_SPEED * BASE_PIPE_SPAWN_INTERVAL) / currentSpeed;
+            if (Date.now() - lastPipeTime > dynamicInterval) { spawnPipe(); lastPipeTime = Date.now(); }
+            pipes.forEach((p, i) => {
+                p.x -= currentSpeed;
+                if (fish.alive && fish.x + 15 > p.x && fish.x - 15 < p.x + 90) {
+                    if (fish.y - 8 < p.top || fish.y + 8 > p.bottom) { sfx.crash(); triggerDisintegration(fish.x, fish.y); endGame(); }
+                }
+                if (p.x < -150) pipes.splice(i, 1);
+            });
+            coins.forEach((c, i) => {
+                c.x -= currentSpeed; c.anim += 0.12;
+                const floatY = Math.sin(Date.now() * 0.005 + c.floatOffset) * 8;
+                if (fish.alive && Math.hypot(fish.x - c.x, fish.y - (c.y + floatY)) < 35) {
+                    coinsSession++; sfx.coin(); updateScoreUI();
+                    for(let j=0; j<5; j++) particles.push({ x: c.x, y: c.y+floatY, vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4, life: 1, size: 2 });
+                    coins.splice(i, 1);
+                } else if (c.x < -50) coins.splice(i, 1);
+            });
+        }
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i]; 
+            p.x += p.vx; p.y += p.vy; 
+            p.life -= p.type === 'bubble' ? 0.012 : 0.02;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+    }
+
+    function triggerDisintegration(x, y) {
+        fish.alive = false;
+        for(let i=0; i<30; i++) particles.push({ x, y, vx: (Math.random()-0.5)*14, vy: (Math.random()-0.5)*14, life: 1, size: Math.random()*6+2 });
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        ctx.fillStyle = COLORS.bubble; 
+        environmentBubbles.forEach(b => { 
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.fillStyle = "rgba(83, 83, 83, 0.08)";
+        seabedDeco.forEach(d => { ctx.fillRect(d.x, GROUND_Y - d.h - 15, d.w, d.h); });
+        seaweed.forEach(s => {
+            const swing = Math.sin(Date.now() * 0.002 + s.offset) * 15;
+            ctx.fillStyle = COLORS.seaweed;
+            const segmentH = 15;
+            for(let j=0; j < s.segments; j++) {
+                const offX = (j / s.segments) * swing;
+                ctx.fillRect(s.x + offX, GROUND_Y - 15 - (j * segmentH), s.w, segmentH);
+            }
+        });
+        ctx.fillStyle = COLORS.main;
+        ctx.fillRect(0, GROUND_Y, GAME_WIDTH, 2); 
+        for (let i = 0; i < GAME_WIDTH; i += 4) {
+            if ((i + Math.floor(groundOffset)) % 12 < 4) {
+                ctx.fillRect(i, GROUND_Y + 10, 4, 4);
+                ctx.fillRect(i + 20, GROUND_Y + 25, 8, 2);
+            }
+        }
+        if (gameState !== 'START') {
+            pipes.forEach(p => {
+                ctx.fillStyle = COLORS.main;
+                ctx.fillRect(p.x, 0, 90, p.top - RIM_HEIGHT); 
+                ctx.fillRect(p.x - 6, p.top - RIM_HEIGHT, 102, RIM_HEIGHT);
+                ctx.fillRect(p.x, p.bottom + RIM_HEIGHT, 90, GROUND_Y - (p.bottom + RIM_HEIGHT)); 
+                ctx.fillRect(p.x - 6, p.bottom, 102, RIM_HEIGHT);
+                ctx.fillStyle = COLORS.bg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; 
+                ctx.font = '28px "Jersey 10"'; 
+                const drawText = (l, cy) => {
+                    const lines = Array.isArray(l) ? l : [l];
+                    ctx.save(); ctx.translate(p.x + 45, cy); ctx.rotate(Math.PI/2);
+                    lines.forEach((txt, idx) => ctx.fillText(txt, 0, idx * 30 - (lines.length-1)*15));
+                    ctx.restore();
+                };
+                if (p.labelTop) drawText(p.labelTop, (p.top - RIM_HEIGHT)/2);
+                if (p.labelBottom) drawText(p.labelBottom, (p.bottom + RIM_HEIGHT + (GROUND_Y - p.bottom - RIM_HEIGHT)/2));
+            });
+            coins.forEach(c => drawMinimalCoin(ctx, c.x, c.y, c.anim, Math.sin(Date.now()*0.005 + c.floatOffset)*8));
+        }
+        particles.forEach(p => { 
+            ctx.globalAlpha = p.life; 
+            if (p.type === 'bubble') {
+                ctx.strokeStyle = COLORS.main; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.stroke();
+            } else {
+                ctx.fillStyle = COLORS.main;
+                ctx.fillRect(p.x, p.y, p.size * p.life, p.size * p.life); 
+            }
+            ctx.globalAlpha = 1; 
+        });
+        drawFish(ctx, fish.x, fish.y, fish.rotation);
+    }
+
+    function jump() {
+        if (!fish.alive || !leaderboardScreen.classList.contains('hidden')) return;
+        initAudio();
+        spawnInteractionBubbles(fish.x, fish.y);
+        if (gameState === 'PLAYING') {
+            hintEl.classList.add('hidden');
+            fish.velocity = JUMP; 
+            sfx.jump(); 
+        }
+        else if (gameState === 'START') startGame();
+    }
+
+    function startGame() {
+        initAudio();
+        gameState = 'PLAYING'; 
+        fish.alive = true; fish.velocity = JUMP; sfx.jump();
+        startScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden');
+        persistentBoard.classList.add('opacity-0'); hintEl.classList.remove('hidden'); 
+        coinsSession = 0; currentSpeed = BASE_SPEED; updateScoreUI(); lastPipeTime = Date.now();
+    }
+
+    function endGame() {
+        if (gameState === 'GAMEOVER') return;
+        gameState = 'GAMEOVER';
+        hintEl.classList.add('hidden'); persistentBoard.classList.remove('opacity-0'); 
+        const isNewRecord = coinsSession > highscoreCotas;
+        if (isNewRecord) {
+            highscoreCotas = coinsSession;
+            localStorage.setItem('flappyHighscoreCotas', highscoreCotas);
+            sfx.record();
+            recordBanner.classList.remove('hidden');
+        } else {
+            recordBanner.classList.add('hidden');
+        }
+        calculatePerformanceMetrics();
+        document.getElementById('death-title').innerText = ACID_TITLES[Math.floor(Math.random() * ACID_TITLES.length)];
+        document.getElementById('death-subtitle').innerText = ACID_SUBTITLES[Math.floor(Math.random() * ACID_SUBTITLES.length)];
+        document.getElementById('final-coins').innerText = coinsSession.toString().padStart(5, '0');
+        nameInput.value = currentInvestorName;
+        setTimeout(() => gameOverScreen.classList.remove('hidden'), 600);
+    }
+
+    function updateScoreUI() {
+        scoreEl.innerText = coinsSession.toString().padStart(5, '0');
+        hiScoreEl.innerText = highscoreCotas.toString().padStart(5, '0');
+    }
+
+    function toggleLeaderboard(show) {
+        if (show) { updateLeaderboardUI(); leaderboardScreen.classList.remove('hidden'); } 
+        else { leaderboardScreen.classList.add('hidden'); }
+    }
+
+    window.addEventListener('keydown', e => { if(e.code === 'Space' || e.code === 'ArrowUp') jump(); });
+    window.addEventListener('mousedown', e => { if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') jump(); });
+    window.addEventListener('touchstart', e => { if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') { e.preventDefault(); jump(); } }, {passive: false});
+
+    document.getElementById('start-btn').onclick = startGame;
+    document.getElementById('restart-btn').onclick = () => {
+        saveScore();
+        gameState = 'START'; 
+        fish.x = GAME_WIDTH / 2; fish.y = 270; 
+        fish.velocity = 0; 
+        fish.rotation = 0; 
+        fish.alive = true;
+        pipes = []; coins = []; startScreen.classList.remove('hidden'); 
+        gameOverScreen.classList.add('hidden'); persistentBoard.classList.remove('opacity-0');
+        hintEl.classList.add('hidden'); updateScoreUI();
+    };
+
+    document.getElementById('over-leaderboard-btn').onclick = () => toggleLeaderboard(true);
+    document.getElementById('close-leaderboard-btn').onclick = () => toggleLeaderboard(false);
+
+    window.onload = () => { 
+        canvas.width = GAME_WIDTH; canvas.height = GAME_HEIGHT; 
+        initEnvironment(); updateScoreUI(); updateLeaderboardUI(); 
+        nameInput.value = currentInvestorName;
+        (function loop() { update(); draw(); requestAnimationFrame(loop); })();
+    };
+</script>
+
+</body>
+</html>
